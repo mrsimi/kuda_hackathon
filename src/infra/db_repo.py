@@ -71,7 +71,7 @@ class DatabaseManager:
             return 0
         except Exception as e:
             print("Error in database add:", e)
-            return -1
+            return None
         finally:
             self._return_connection(conn)
 
@@ -154,7 +154,7 @@ class DatabaseManager:
 
         cursor = conn.cursor()
         try:
-            query = "select column_name from information_schema.columns where table_name=?"
+            query = "select column_name, data_type from information_schema.columns where table_name=?"
             cursor.execute(query, (table_name,))
             rows = cursor.fetchall()
             return rows
