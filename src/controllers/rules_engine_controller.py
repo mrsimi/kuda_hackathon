@@ -62,7 +62,6 @@ def get_data_points():
             mimetype='application/json'
         )
 
-
 @rules.route('/rulecheck', methods=['POST'])
 def checkrule():
     try:
@@ -70,6 +69,40 @@ def checkrule():
 
         rules_service = RuleEngine()
         res = rules_service.rule_check(data)
+        return Response(response=json.dumps(res.to_dict()),
+                        status=res.statuscode,
+                        mimetype='application/json'
+                        )
+    except Exception as e:
+        return Response(response=json.dumps(ResponseDto(
+            False, 'An error occured. Try again later', None, 500
+        ).to_dict()),
+            status=500,
+            mimetype='application/json'
+        )
+
+@rules.route('/rules', methods=['GET'])
+def get_rules():
+    try:
+        rules_service = RuleEngine()
+        res = rules_service.get_rules()
+        return Response(response=json.dumps(res.to_dict()),
+                        status=res.statuscode,
+                        mimetype='application/json'
+                        )
+    except Exception as e:
+        return Response(response=json.dumps(ResponseDto(
+            False, 'An error occured. Try again later', None, 500
+        ).to_dict()),
+            status=500,
+            mimetype='application/json'
+        )
+
+@rules.route('/report', methods=['GET'])
+def get_repot():
+    try:
+        rules_service = RuleEngine()
+        res = rules_service.get_report()
         return Response(response=json.dumps(res.to_dict()),
                         status=res.statuscode,
                         mimetype='application/json'

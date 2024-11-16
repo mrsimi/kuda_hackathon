@@ -1,5 +1,6 @@
 import pyodbc
 from pyodbc import OperationalError
+import asyncio
 
 class DatabaseManager:
     def __init__(self, server, database, username, password, pool_size=3):
@@ -58,7 +59,24 @@ class DatabaseManager:
             print("Invalid connection. Closing it.")
             connection.close()  # Close the invalid connection
         self.active_connections -= 1
-    
+
+    async def single_inserts_async(self, query, params):
+        conn = await asyncio.to_thread(self._get_connection)
+        if not conn:
+            return -1
+
+        cursor = conn.cursor()
+        try:
+            # Perform the insert operation asynchronously in a separate thread
+            await asyncio.to_thread(cursor.execute, query, params)
+            await asyncio.to_thread(conn.commit)
+            return 0
+        except Exception as e:
+            print("Error in database add:", e)
+            return None
+        finally:
+            await asyncio.to_thread(self._return_connection, conn)
+
     def single_inserts(self, query, params):
         conn = self._get_connection()
         if not conn:
