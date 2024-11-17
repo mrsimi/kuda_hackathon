@@ -100,8 +100,7 @@ class RuleEngine:
             # Convert values
             converter = self.type_validation_map.get(check_value_data_type)
             if not converter:
-                logger.error(f"Unsupported data type for conversion: {
-                             check_value_data_type}")
+                logger.error(f"Unsupported data type for conversion: {check_value_data_type}")
                 return False
 
             converted_check_value = converter(data[column_to_check])
