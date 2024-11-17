@@ -158,13 +158,14 @@ class RuleEngine:
                 except ValueError:
                     return ResponseDto(False, f'Invalid data type for checkValue. Expected {column_data_type}.', None, 400)
         description = dataRequest['description'] if dataRequest['description'] else ''
+        ruleName = dataRequest['name'] if dataRequest['name'] else ''
         insert_query = """
             INSERT INTO kd_hk_rules
-            (dataPoint, isExpression, conditional, checkValue, CheckValueDatatype, Description)
-            VALUES (?, 0, ?, ?, ?, ?)
+            (dataPoint, isExpression, conditional, checkValue, CheckValueDatatype, Description, RuleName)
+            VALUES (?, 0, ?, ?, ?, ?, ?)
         """
         res = self.db.single_inserts(
-            insert_query, (dataPoint, conditional, checkValue, column_data_type, description))
+            insert_query, (dataPoint, conditional, checkValue, column_data_type, description, ruleName))
         if res is None:
             return ResponseDto(False, 'Error creating rule. Please try again later.', None, 400)
 
@@ -211,7 +212,7 @@ class RuleEngine:
         try:
             select_report_query = """
                 select report.PayloadType, report.PayloadDetails, 
-                report.DateInserted, rules.id, rules.Description  
+                report.DateInserted, rules.id, rules.Description, rules.ruleName  
                 from kd_hk_report as report with(nolock)
                 join kd_hk_rules as rules  on report.RuleId = rules.Id 
 
@@ -226,7 +227,8 @@ class RuleEngine:
                         'payloadDetails': json.loads(record[1]),
                         'date': record[2],
                         'ruleId': record[3],
-                        'ruleDescription': record[4]
+                        'ruleDescription': record[4],
+                        'ruleName': record[5]
                     })
             return ResponseDto(True, 'Success', results, 200)
         except Exception as e:
