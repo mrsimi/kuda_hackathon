@@ -46,8 +46,9 @@ class RuleEngine:
             table_columns = self.__get_table_columns('kd_hk_transactions')
             if table_columns:
                 data = {
-                    'columns': table_columns, 
-                    'conditionals': self.get_conditionals()
+                    'datapoints': table_columns, 
+                    'conditionals': self.get_conditionals(), 
+                    'category': ['transactions']
                 }
                 return ResponseDto(True, 'success', data, 200)
             else:
@@ -132,10 +133,10 @@ class RuleEngine:
             return self.__validate_expression_type_rule(rule, data)
 
     def set_value_type_rule(self, dataRequest: dict):
-        if not self.__keys_exist(dataRequest, ['dataColumn', 'checkValue', 'conditional']):
+        if not self.__keys_exist(dataRequest, ['dataPoint', 'checkValue', 'conditional']):
             return ResponseDto(False, 'Invalid request: Missing or empty values', None, 400)
 
-        dataColumn = dataRequest['dataColumn']
+        dataPoint = dataRequest['dataPoint']
         checkValue = dataRequest['checkValue']
         conditional = dataRequest['conditional']
         
@@ -143,10 +144,10 @@ class RuleEngine:
             return ResponseDto(False, f"Unsupported conditional: {conditional}", None, 400)
         table_columns = self.__get_table_columns('kd_hk_transactions')
 
-        if dataColumn not in table_columns:
-            return ResponseDto(False, 'dataColumn is not mapped to the table', None, 400)
+        if dataPoint not in table_columns:
+            return ResponseDto(False, 'dataPoint is not mapped to the table', None, 400)
 
-        column_data_type = table_columns[dataColumn]
+        column_data_type = table_columns[dataPoint]
         
         if 'char' not in column_data_type:
             if column_data_type in self.type_validation_map:
@@ -160,11 +161,11 @@ class RuleEngine:
         description = dataRequest['description'] if dataRequest['description'] else ''
         insert_query = """
             INSERT INTO kd_hk_rules
-            (dataColumn, isExpression, conditional, checkValue, CheckValueDatatype, Description)
+            (dataPoint, isExpression, conditional, checkValue, CheckValueDatatype, Description)
             VALUES (?, 0, ?, ?, ?, ?)
         """
         res = self.db.single_inserts(
-            insert_query, (dataColumn, conditional, checkValue, column_data_type, description))
+            insert_query, (dataPoint, conditional, checkValue, column_data_type, description))
         if res is None:
             return ResponseDto(False, 'Error creating rule. Please try again later.', None, 400)
 
@@ -234,5 +235,11 @@ class RuleEngine:
             return ResponseDto(False, 'An error occured', False, 500)
 
             
-
+    def set_expression_type_rule(self, dataRequest:dict):
+        try:
+            if not self.__keys_exist(dataRequest, ['dataPoint', 'expression', 'conditional']):
+                return ResponseDto(False, 'Invalid request: Missing or empty values', None, 400)
+            return 
+        except Exception as e:
+            return 
 
