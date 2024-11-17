@@ -93,8 +93,7 @@ class RuleEngine:
 
         # Guard clause: Ensure the column exists in the data
         if column_to_check not in data:
-            logger.warning(f"Data column '{
-                           column_to_check}' not present in the request")
+            logger.warning(f"Data column '{column_to_check}' not present in the request")
             return False
 
         try:
@@ -242,7 +241,12 @@ class RuleEngine:
 
             # check if the expression is valid
             # run the script and get the first result and insert to the expression db
-            # set a database trigger for the rule
+            # -- Enable the trigger and set trigger
+            # save rule in the database and triggername
+
+            # test trigger - pick stored trigger name, add a test record to transaction, check if dbtrigger is triggered
             return
         except Exception as e:
             return
+
+    #every minute, get all active rules with triggernames and check if they exists
