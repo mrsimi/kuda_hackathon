@@ -218,10 +218,10 @@ class RuleEngine:
 
             """
             records = self.db.fetch_records(select_report_query, ())
-            results = []
+            rule_results = []
             if records:
                 for index, record in enumerate(records):
-                    results.append({
+                    rule_results.append({
                         'sn': index+1,
                         'payloadType': record[0],
                         'payloadDetails': json.loads(record[1]),
@@ -230,6 +230,8 @@ class RuleEngine:
                         'ruleDescription': record[4],
                         'ruleName': record[5]
                     })
+            results = {}
+            results['rules'] = rule_results 
             return ResponseDto(True, 'Success', results, 200)
         except Exception as e:
             logger.error(f'error_trying_to_get_report {e}')
