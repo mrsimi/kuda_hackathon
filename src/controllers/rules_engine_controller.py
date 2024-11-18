@@ -13,19 +13,20 @@ def rule_setup():
         rules_service = RuleEngine()
         if 'isExpression' in data:
             if not data['isExpression']:
+                #print('set value type')
                 res = rules_service.set_value_type_rule(data)
                 return Response(
                     response=json.dumps(res.to_dict()),
                     status=res.statuscode,
                     mimetype='application/json'
                 )
+                return
             else:
+                print('set expression type')
+                res = rules_service.set_expression_type_rule(data)
                 return Response(
-                    response=json.dumps({
-                        'isSuccessful': True,
-                        'message': 'still building expression rule type'
-                    }),
-                    status=400,
+                    response=json.dumps(res.to_dict()),
+                    status=res.statuscode,
                     mimetype='application/json'
                 )
         else:

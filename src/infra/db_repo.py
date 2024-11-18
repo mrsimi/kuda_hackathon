@@ -92,6 +92,38 @@ class DatabaseManager:
             return None
         finally:
             self._return_connection(conn)
+    
+    def single_insert_no_param(self, query):
+        conn = self._get_connection()
+        if not conn:
+            return -1
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(query)
+            conn.commit()
+        except Exception as e:
+            print("Error in single_insert_no_param:", e)
+            return None
+        finally:
+            self._return_connection(conn)
+    
+    def single_insert_return_id(self, query, params):
+        conn = self._get_connection()
+        if not conn:
+            return -1
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(query, params)
+            conn.commit()
+            inserted_id = cursor.fetchone()[0]
+            return inserted_id
+        except Exception as e:
+            print("Error in database add:", e)
+            return None
+        finally:
+            self._return_connection(conn)
 
     def multiple_inserts(self, query, params):
         conn = self._get_connection()
@@ -135,7 +167,7 @@ class DatabaseManager:
     def fetch_record(self, query, params):
         conn = self._get_connection()
         if not conn:
-            return []
+            return None
 
         cursor = conn.cursor()
         try:
@@ -144,7 +176,7 @@ class DatabaseManager:
             return rows
         except Exception as e:
             print("Error fetching records:", e)
-            return []
+            return None
         finally:
             self._return_connection(conn)
 

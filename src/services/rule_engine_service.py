@@ -1,5 +1,7 @@
 from datetime import datetime
 import json
+import random
+import re
 from typing import List
 from flask import g
 from src.dto.response_dto import ResponseDto
@@ -124,6 +126,48 @@ class RuleEngine:
             return False
 
     def __validate_expression_type_rule(self, rule, data):
+        column_to_check = rule[1].lower()
+        conditional = rule[3]
+
+        data = self.__convert_keys_to_lowercase(data)
+        if column_to_check not in data:
+            logger.warning(f"Data column '{column_to_check}' not present in the request")
+            return False
+        
+        try:
+            #get rule result 
+            rule_result_query = """
+            select ResultValue from kd_hk_expression_result with(nolock)
+            where RuleId = ? and SourceAccountNumber = ?
+            """
+            rule_result = self.db.fetch_record(rule_result_query, (rule[0], data['sourceaccountnumber']))
+            
+            logger.info(f'rule_result {rule_result}')
+            if rule_result is None:
+                return False
+            
+            
+            converter = self.type_validation_map.get(rule[12])
+            if not converter:
+                logger.error(f"Unsupported data type for conversion: {rule[12]}")
+                return False
+            
+            converted_check_value = converter(data[column_to_check])
+            converted_value_to_check_against = converter(rule_result[0])
+
+            # # Evaluate the condition
+            is_faulted = self.conditional_map[conditional](converted_check_value, converted_value_to_check_against)
+
+            if is_faulted:
+                self.__save_report(rule[0], data)
+                return True
+            return False
+        except KeyError as e:
+            logger.error(f"Key error: {e}")
+            return False
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid data type for rule comparison: {e}")
+            return False
         return False
 
     def __validate_rule(self, rule, data):
@@ -197,7 +241,8 @@ class RuleEngine:
             if active_rules:
                 for rule in active_rules:
                     rule_dict = {}
-                    rule_dict['type'] = 'Expression' if rule[2] else 'ValueCheck'
+                    rule_dict['name'] = rule[11]
+                    rule_dict['type'] = 'ExpressionCheck' if rule[2] else 'ValueCheck'
                     rule_dict['description'] = rule[9]
                     rule_dict['id'] = rule[0]
                     results.append(rule_dict)
@@ -242,14 +287,148 @@ class RuleEngine:
             if not self.__keys_exist(dataRequest, ['dataPoint', 'expression', 'conditional']):
                 return ResponseDto(False, 'Invalid request: Missing or empty values', None, 400)
 
+            dataPoint = dataRequest['dataPoint']
+            description = dataRequest['description']
+            conditional = dataRequest['conditional']
+            ruleName = dataRequest['name']
+            
+            categories = {
+                'transactions': 'kd_hk_transactions'
+            }
+            user_expression = str(dataRequest['expression']).lower()
+            replace_action = 0
+            table_name = ''
+
+            if '1=1' in user_expression or user_expression.startswith('select') == False:
+                return ResponseDto(False, 'Invalid request: check your expression', None, 400)
+            if 'where' not in user_expression:
+                return ResponseDto(False, 'Invalid boundary: expression has no where clause. Without where clause expression is performed on all customer records', None, 400)
+            
+            for category in categories:
+                if category in user_expression:
+                    table_name = categories[category]
+                    user_expression = user_expression.replace(category, table_name)
+                    replace_action +=1
+            
+            
+            if replace_action == 0:
+                return ResponseDto(False, 'Invalid request: Missing category', None, 400)
+            
+            if conditional not in self.conditional_map:
+                return ResponseDto(False, f"Unsupported conditional: {conditional}", None, 400)
+            
+            table_columns = self.__get_table_columns('kd_hk_transactions')
+
+            if dataPoint not in table_columns:
+                return ResponseDto(False, 'dataPoint is not mapped to the table', None, 400)
+
+            data_point_data_type = table_columns[dataPoint]
+
+            expression = user_expression +' and sourceaccountnumber=?'
+
             # check if the expression is valid
-            # run the script and get the first result and insert to the expression db
+            query_result = self.db.fetch_record(expression, ('1',))
+            if query_result == None:
+                return ResponseDto(False, 'Invalid request: Expression is not valid', None, 400)
+
+            
+            trigger_name = f'{re.sub(r"\s+", "_", ruleName)}_{random.randint(1, 1000)}'
+            # save rule in db
+            insert_rule_query = """
+                insert into kd_hk_rules  (dataPoint, isExpression, conditional, expression, triggerName, description, ruleName, DataPointDataType)
+                values(?, 1, ?, ?, ?, ?, ?, ?)
+            """
+            self.db.single_inserts(insert_rule_query, (dataPoint, conditional, expression, trigger_name, description, ruleName, data_point_data_type))
+            inserted_rule = self.db.fetch_record(query=f'select id from kd_hk_rules where triggerName=?', params=(trigger_name,))
+
+            if inserted_rule is None:
+                return ResponseDto(False, 'Error trying to save the rule', None, 400)
+            
+            # run the script and get the first result and insert to the expression result db
+            test_expression = user_expression.replace('select', 'select sourceaccountnumber, ') + 'group by sourceaccountnumber'
+            #logger.info(test_expression)
+            first_expression_results = self.db.fetch_records(test_expression, ())
+            if first_expression_results:
+                #multiple inserts 
+                data = [(inserted_rule[0], expression_result[1], str(type(expression_result[1])), expression_result[0]) for expression_result in first_expression_results]
+                insert_query = """
+                    insert into kd_hk_expression_result (RuleId, ResultValue, ResultDataType, SourceAccountNumber)
+                    values (?, ?, ?, ?)
+                """
+                self.db.multiple_inserts(insert_query, data)
+
             # -- Enable the trigger and set trigger
-            # save rule in the database and triggername
+            str_trigger_name = '\''+trigger_name+'\''
+            create_trigger_query = f"""
+                CREATE TRIGGER {trigger_name}
+                ON {table_name}
+                AFTER INSERT
+                AS
+                BEGIN
+                    DECLARE @SourceAccountNumber NVARCHAR(10);
+                    DECLARE @ResultValue NVARCHAR(MAX);
+                    DECLARE @RuleId INT;
+                    DECLARE @ExistingRuleCount INT;
+
+                    DECLARE cur CURSOR FOR
+                    SELECT SourceAccountNumber FROM inserted;
+
+                    OPEN cur;
+                    FETCH NEXT FROM cur INTO @SourceAccountNumber;
+
+                    WHILE @@FETCH_STATUS = 0
+                    BEGIN
+                        -- Construct the result value for each row
+                        SET @ResultValue = ({user_expression} and sourceaccountnumber= @SourceAccountNumber);
+
+                        -- Retrieve RuleId
+                        SELECT @RuleId = Id FROM kd_hk_rules WHERE TriggerName = {str_trigger_name};
+
+                        -- Check if the rule already exists in the result table
+                        SELECT @ExistingRuleCount = COUNT(*) FROM kd_hk_expression_result 
+                        WHERE RuleId = @RuleId AND SourceAccountNumber=@SourceAccountNumber;
+
+                        -- If the rule exists, update, otherwise insert
+                        IF @ExistingRuleCount > 0
+                        BEGIN
+                            UPDATE kd_hk_expression_result
+                            SET ResultValue = @ResultValue, DateTimeUpdated = GETDATE()
+                            WHERE RuleId = @RuleId AND SourceAccountNumber=@SourceAccountNumber;
+                        END
+                        ELSE
+                        BEGIN
+                            INSERT INTO kd_hk_expression_result (RuleId, ResultValue, ResultDataType, SourceAccountNumber)
+                            VALUES (@RuleId, @ResultValue, '', @SourceAccountNumber);
+                        END
+
+                        FETCH NEXT FROM cur INTO @SourceAccountNumber;
+                    END;
+
+                    CLOSE cur;
+                    DEALLOCATE cur;
+                END;
+            """
+            #logger.info(create_trigger_query)
+            self.db.single_insert_no_param(create_trigger_query)
+
+            #validate trigger insertion
+            check_trigger = f"""
+                SELECT t.name AS TriggerName
+                FROM sys.triggers t
+                INNER JOIN sys.tables tb ON t.parent_id = tb.object_id
+                WHERE tb.name = ? and t.name = ?;
+            """
+            trigger = self.db.fetch_record(check_trigger, (table_name, trigger_name))
+            if trigger is None:
+                logger.error('could not create trigger for rule')
+                #log it somewhere to retry .
+            
+            #logger.info(trigger)
 
             # test trigger - pick stored trigger name, add a test record to transaction, check if dbtrigger is triggered
-            return
+            return ResponseDto(True, 'Success', None, 200)
         except Exception as e:
-            return
+            logger.error(f'error_set_expression_type_rule {e}')
+            return ResponseDto(False, 'An error occured', False, 500) 
 
     #every minute, get all active rules with triggernames and check if they exists
