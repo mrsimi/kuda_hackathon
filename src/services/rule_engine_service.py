@@ -260,7 +260,7 @@ class RuleEngine:
                 report.DateInserted, rules.id, rules.Description, rules.ruleName  
                 from kd_hk_report as report with(nolock)
                 join kd_hk_rules as rules  on report.RuleId = rules.Id 
-
+                order by report.DateInserted DESC 
             """
             records = self.db.fetch_records(select_report_query, ())
             rule_results = []
