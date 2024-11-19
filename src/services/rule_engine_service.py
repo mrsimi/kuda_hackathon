@@ -91,7 +91,7 @@ class RuleEngine:
         value_to_check_against = rule[4]
         conditional = rule[3]
         check_value_data_type = rule[8]
-        data = self.__convert_keys_to_lowercase(data)
+        
 
         # Guard clause: Ensure the column exists in the data
         if column_to_check not in data:
@@ -129,7 +129,7 @@ class RuleEngine:
         column_to_check = rule[1].lower()
         conditional = rule[3]
 
-        data = self.__convert_keys_to_lowercase(data)
+        
         if column_to_check not in data:
             logger.warning(f"Data column '{column_to_check}' not present in the request")
             return False
@@ -156,6 +156,7 @@ class RuleEngine:
             converted_value_to_check_against = converter(rule_result[0])
 
             # # Evaluate the condition
+            logger.info(converted_check_value, converted_value_to_check_against)
             is_faulted = self.conditional_map[conditional](converted_check_value, converted_value_to_check_against)
 
             if is_faulted:
@@ -217,6 +218,7 @@ class RuleEngine:
 
     def rule_check(self, data) -> ResponseDto:
         try:
+            data = self.__convert_keys_to_lowercase(data)
             select_rules_query = "select * from kd_hk_rules with(nolock) where isActive = 1"
             active_rules = self.db.fetch_records(select_rules_query, ())
             if active_rules:
@@ -224,11 +226,22 @@ class RuleEngine:
                 for rule in active_rules:
                     validate_result = self.__validate_rule(rule, data)
                     result = result or validate_result
-
+            
                 message = 'Transaction is suspicious' if result else 'Not a suspicious transaction'
-                return ResponseDto(True, message, result, 200)
+                res= ResponseDto(True, message, result, 200)
             else:
-                return ResponseDto(True, 'No active rules', result, 200)
+                res = ResponseDto(True, 'No active rules', result, 200)
+            
+            
+            #insert transaction
+            tranx_insert_query = """
+                insert into kd_hk_transactions (sourceAccountNumber, DestinationAccountNumber,
+                 Amount,DestinationBankCode) values (?, ?, ?, ?)
+            """
+            self.db.single_inserts(tranx_insert_query, (data['sourceaccountnumber'], data['destinationaccountnumber'],
+                                                     data['amount'], data['destinationbankcode']))
+            logger.info(f'insert record {data}')
+            return res
         except Exception as e:
             logger.error(f"Error occurred during rule check: {e}")
             return ResponseDto(False, 'An error occured', False, 500)
@@ -392,13 +405,13 @@ class RuleEngine:
                         IF @ExistingRuleCount > 0
                         BEGIN
                             UPDATE kd_hk_expression_result
-                            SET ResultValue = @ResultValue, DateTimeUpdated = GETDATE()
+                            SET ResultValue = CAST(@ResultValue AS NVARCHAR(MAX)), DateTimeUpdated = GETDATE()
                             WHERE RuleId = @RuleId AND SourceAccountNumber=@SourceAccountNumber;
                         END
                         ELSE
                         BEGIN
                             INSERT INTO kd_hk_expression_result (RuleId, ResultValue, ResultDataType, SourceAccountNumber)
-                            VALUES (@RuleId, @ResultValue, '', @SourceAccountNumber);
+                            VALUES (@RuleId, CAST(@ResultValue AS NVARCHAR(MAX)), '', @SourceAccountNumber);
                         END
 
                         FETCH NEXT FROM cur INTO @SourceAccountNumber;
@@ -423,7 +436,7 @@ class RuleEngine:
                 logger.error('could not create trigger for rule')
                 #log it somewhere to retry .
             
-            #logger.info(trigger)
+            logger.info(trigger)
 
             # test trigger - pick stored trigger name, add a test record to transaction, check if dbtrigger is triggered
             return ResponseDto(True, 'Success', None, 200)
