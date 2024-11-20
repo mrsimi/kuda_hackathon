@@ -303,11 +303,12 @@ class RuleEngine:
                         'sn': index+1,
                         'userId': record[1],
                         'alertType': record[2],
-                        'riskScore': record[3]
+                        'riskScore': record[3],
+                        'date': record[4]
                     })
             
             results['anomalies'] = anomlay_result
-            
+
             return ResponseDto(True, 'Success', results, 200)
         except Exception as e:
             logger.error(f'error_trying_to_get_report {e}')
