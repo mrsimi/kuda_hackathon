@@ -115,3 +115,31 @@ def get_repot():
             status=500,
             mimetype='application/json'
         )
+    
+@rules.route('/disable', methods=['POST'])
+def disable_rule():
+    try:
+        rules_service = RuleEngine()
+        req = request.json
+        if req['ruleId']:
+            ruleId = req['ruleId']
+            res = rules_service.disable_rule(ruleId)
+            return Response(response=json.dumps(res.to_dict()),
+                            status=res.statuscode,
+                            mimetype='application/json'
+                            )
+        return Response(response=json.dumps(ResponseDto(
+            False, 'No ruleId passed', None, 400
+        ).to_dict()),
+            status=400,
+            mimetype='application/json'
+        )
+    except Exception as e:
+        return Response(response=json.dumps(ResponseDto(
+            False, 'An error occured. Try again later', None, 500
+        ).to_dict()),
+            status=500,
+            mimetype='application/json'
+        )
+    
+

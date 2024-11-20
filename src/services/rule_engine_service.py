@@ -248,7 +248,7 @@ class RuleEngine:
 
     def get_rules(self) -> List[dict]:
         try:
-            select_rules_query = "select * from kd_hk_rules with(nolock) where isActive = 1"
+            select_rules_query = "select * from kd_hk_rules with(nolock)"
             active_rules = self.db.fetch_records(select_rules_query, ())
             results = []
             if active_rules:
@@ -258,6 +258,7 @@ class RuleEngine:
                     rule_dict['type'] = 'ExpressionCheck' if rule[2] else 'ValueCheck'
                     rule_dict['description'] = rule[9]
                     rule_dict['id'] = rule[0]
+                    rule_dict['isactive'] = rule[7]
                     results.append(rule_dict)
 
             return ResponseDto(True, 'Success', results, 200)
@@ -464,3 +465,27 @@ class RuleEngine:
             return ResponseDto(False, 'An error occured', False, 500) 
 
     #every minute, get all active rules with triggernames and check if they exists
+
+    def disable_rule(self, ruleId):
+        try:
+            deactivate_rule_query = """
+            update kd_hk_rules set isActive = 0
+                where Id = ? 
+            """
+            self.db.single_inserts(deactivate_rule_query, (ruleId))
+            return ResponseDto(True, 'Success', None, 200)
+        except Exception as err:
+            logger.error(f'error_trying_to_get_rules {err}')
+            return ResponseDto(False, 'An error occured', False, 500)
+    
+    def enable_rule(self, ruleId):
+        try:
+            activate_rule_query = """
+            update kd_hk_rules set is IsActive = 1
+                where Id = ? 
+            """
+            self.db.single_inserts(activate_rule_query, (ruleId))
+            return ResponseDto(True, 'Success', None, 200)
+        except Exception as err:
+            logger.error(f'error_trying_to_get_rules {err}')
+            return ResponseDto(False, 'An error occured', False, 500)
