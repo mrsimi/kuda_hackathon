@@ -248,7 +248,7 @@ class RuleEngine:
 
     def get_rules(self) -> List[dict]:
         try:
-            select_rules_query = "select * from kd_hk_rules with(nolock)"
+            select_rules_query = "select * from kd_hk_rules with(nolock) where isactive=1"
             active_rules = self.db.fetch_records(select_rules_query, ())
             results = []
             if active_rules:
