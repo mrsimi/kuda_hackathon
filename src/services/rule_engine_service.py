@@ -275,6 +275,10 @@ class RuleEngine:
                 join kd_hk_rules as rules  on report.RuleId = rules.Id 
                 order by report.DateInserted DESC 
             """
+            select_anomaly_query = """
+                select * from kd_hk_anomalies
+                order by timestamp desc
+            """
             records = self.db.fetch_records(select_report_query, ())
             rule_results = []
             if records:
@@ -290,6 +294,20 @@ class RuleEngine:
                     })
             results = {}
             results['rules'] = rule_results 
+
+            anomaly_records = self.db.fetch_records(select_anomaly_query, ())
+            anomlay_result = []
+            if anomaly_records:
+                for index, record in enumerate(anomaly_records):
+                    anomlay_result.append({
+                        'sn': index+1,
+                        'userId': record[1],
+                        'alertType': record[2],
+                        'riskScore': record[3]
+                    })
+            
+            results['anomalies'] = anomlay_result
+            
             return ResponseDto(True, 'Success', results, 200)
         except Exception as e:
             logger.error(f'error_trying_to_get_report {e}')
