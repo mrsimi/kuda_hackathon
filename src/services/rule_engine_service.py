@@ -269,12 +269,19 @@ class RuleEngine:
 
     def get_report(self) -> List[dict]:
         try:
+            # select_report_query = """
+            #     select report.PayloadType, report.PayloadDetails, 
+            #     report.DateInserted, rules.id, rules.Description, rules.ruleName  
+            #     from kd_hk_report as report with(nolock)
+            #     join kd_hk_rules as rules  on report.RuleId = rules.Id 
+            #     order by report.DateInserted DESC 
+            # """
             select_report_query = """
-                select report.PayloadType, report.PayloadDetails, 
-                report.DateInserted, rules.id, rules.Description, rules.ruleName  
-                from kd_hk_report as report with(nolock)
-                join kd_hk_rules as rules  on report.RuleId = rules.Id 
-                order by report.DateInserted DESC 
+                	select report.PayloadType, report.PayloadDetails, 
+	                report.DateInserted, rules.id, rules.Description, rules.ruleName  
+	                from kd_hk_report as report with(nolock)
+	                right join kd_hk_rules as rules  on report.RuleId = rules.Id where rules.IsActive =1
+	                order by report.DateInserted DESC 
             """
             select_anomaly_query = """
                 select * from kd_hk_anomalies
@@ -283,15 +290,16 @@ class RuleEngine:
             records = self.db.fetch_records(select_report_query, ())
             rule_results = []
             if records:
+                #print(records)
                 for index, record in enumerate(records):
                     rule_results.append({
                         'sn': index+1,
-                        'payloadType': record[0],
-                        'payloadDetails': json.loads(record[1]),
-                        'date': record[2],
-                        'ruleId': record[3],
-                        'ruleDescription': record[4],
-                        'ruleName': record[5]
+                        'payloadType': record[0] if record[0] else None,
+                        'payloadDetails':  json.loads(record[1]) if record[1] else None,
+                        'date': record[2] if record[2] else None,
+                        'ruleId': record[3] if record[3] else None,
+                        'ruleDescription': record[4] if record[4] else None,
+                        'ruleName': record[5] if record[5] else None
                     })
             results = {}
             results['rules'] = rule_results 
