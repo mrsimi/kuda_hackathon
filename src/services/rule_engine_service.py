@@ -269,20 +269,20 @@ class RuleEngine:
 
     def get_report(self) -> List[dict]:
         try:
-            # select_report_query = """
-            #     select report.PayloadType, report.PayloadDetails, 
-            #     report.DateInserted, rules.id, rules.Description, rules.ruleName  
-            #     from kd_hk_report as report with(nolock)
-            #     join kd_hk_rules as rules  on report.RuleId = rules.Id 
-            #     order by report.DateInserted DESC 
-            # """
             select_report_query = """
-                	select report.PayloadType, report.PayloadDetails, 
-	                report.DateInserted, rules.id, rules.Description, rules.ruleName  
-	                from kd_hk_report as report with(nolock)
-	                right join kd_hk_rules as rules  on report.RuleId = rules.Id where rules.IsActive =1
-	                order by report.DateInserted DESC 
+                select report.PayloadType, report.PayloadDetails, 
+                report.DateInserted, rules.id, rules.Description, rules.ruleName  
+                from kd_hk_report as report with(nolock)
+                join kd_hk_rules as rules  on report.RuleId = rules.Id 
+                order by report.DateInserted DESC 
             """
+            # select_report_query = """
+            #     	select report.PayloadType, report.PayloadDetails, 
+	        #         report.DateInserted, rules.id, rules.Description, rules.ruleName  
+	        #         from kd_hk_report as report with(nolock)
+	        #         right join kd_hk_rules as rules  on report.RuleId = rules.Id where rules.IsActive =1
+	        #         order by report.DateInserted DESC 
+            # """
             select_anomaly_query = """
                 select * from kd_hk_anomalies
                 order by timestamp desc
